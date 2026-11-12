@@ -19,6 +19,24 @@
       ]
     },
     {
+      "file": "02_excessive_fines.pdf",
+      "law": "223-ФЗ",
+      "notice_number": "31908113773",
+      "source_url": "https://zakupki.gov.ru/epz/order/notice/notice223/documents.html?purchaseNoticeNumber=31908113773&noticeGuid=51a1fee6-290d-4d06-b5f9-b1a339fe2173",
+      "source_filename": "Документация по закупке ДпЗ-19-000000011023-01.docx",
+      "source_note": "Проект договора входит в документацию ЕИС, экспортированную в PDF через Microsoft Word. Пункт начинается на странице 71; ставка и база указаны на странице 72. Согласованный вариант: 10% за день от стоимости просроченных обязательств.",
+      "reference_url": "https://base.garant.ru/65190390/",
+      "annotations": [
+        {
+          "page": 72,
+          "clause": "1.13.1",
+          "exact_quote": "Размер пени составляет 10 (десять) % от стоимости обязательств, исполнение которых просрочено, за каждый день просрочки.",
+          "category": "fines",
+          "level": "red"
+        }
+      ]
+    },
+    {
       "file": "03_hidden_licenses.docx",
       "law": "44-ФЗ",
       "notice_number": "0369100000226000042",
@@ -63,12 +81,5 @@
       "annotations": []
     }
   ],
-  "pending_sources": [
-    {
-      "file": "02_excessive_fines.pdf",
-      "category": "fines",
-      "reference_url": "https://meganorm.ru/mega_doc/dop1/50/postanovlenie_prezidiuma_vas_rf_ot_17_12_2013_N_12945_13_po/0/postanovlenie_fas_tsentralnogo_okruga_ot_09_07_2013_po_delu.html",
-      "verification_note": "Дело А68-7334/2012 описывает ежедневную пеню 10% от цены госконтракта. Это исторический пример. Для эталона нужен оригинал договора с подтвержденным правовым режимом 44-ФЗ или 223-ФЗ."
-    }
-  ]
+  "pending_sources": []
 }
