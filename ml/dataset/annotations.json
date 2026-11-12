@@ -2,6 +2,23 @@
   "schema_version": 1,
   "documents": [
     {
+      "file": "01_delayed_payment.docx",
+      "law": "223-ФЗ",
+      "notice_number": "31603826526",
+      "source_url": "https://zakupki.gov.ru/epz/order/notice/notice223/documents.html?purchaseNoticeNumber=31603826526&noticeGuid=8749d5fb-d2a1-487f-84fd-5a19f82a5927",
+      "source_filename": "Документация на котировку ЛП (лекарственные препараты - 4).doc",
+      "source_note": "Проект договора находится в разделе III документации ЕИС. Исходный DOC преобразован в DOCX, страница определена по PDF-экспорту DOCX через Microsoft Word. Риск кассового разрыва оценен по сроку оплаты. Закупка 2016 года предшествует введению в 2022 году общего семидневного срока оплаты по ч. 5.3 ст. 3 Закона № 223-ФЗ.",
+      "annotations": [
+        {
+          "page": 19,
+          "clause": "Раздел III, п. 3.5",
+          "exact_quote": "Срок полной оплаты Покупателем Товара, поставленного в рамках настоящего договора, не должен превышать 60 (шестидесяти) банковских дней со дня получения Товара  Покупателем по товарной накладной, на основании счета-фактуры.",
+          "category": "payment",
+          "level": "red"
+        }
+      ]
+    },
+    {
       "file": "03_hidden_licenses.docx",
       "law": "44-ФЗ",
       "notice_number": "0369100000226000042",
@@ -47,13 +64,6 @@
     }
   ],
   "pending_sources": [
-    {
-      "file": "01_delayed_payment.docx",
-      "category": "payment",
-      "notice_number": "31603826526",
-      "reference_url": "https://www.tenderguru.ru/tender/23388216",
-      "verification_note": "В извещении 2016 года указано 60 банковских дней с получения товара. Нужен оригинал проекта и проверка исторического правового режима. Ранее полученный проект 0280100001226000215 предусматривает семь рабочих дней в п. 2.6."
-    },
     {
       "file": "02_excessive_fines.pdf",
       "category": "fines",
