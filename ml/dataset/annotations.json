@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "documents": [],
+  "pending_sources": [
+    {
+      "file": "01_delayed_payment.docx",
+      "category": "payment",
+      "notice_number": "0280100001226000215",
+      "reference_url": "https://synapsenet.ru/zakupki/fz44/0280100001226000215%231--hakasiya-resp-postavka-podushek",
+      "verification_note": "Карточка упоминает 60 дней и исключение для МСП. Нужно сверить проект контракта и применимость условия: закупка указана как закупка для МСП."
+    },
+    {
+      "file": "02_excessive_fines.pdf",
+      "category": "fines",
+      "reference_url": "https://meganorm.ru/mega_doc/dop1/50/postanovlenie_prezidiuma_vas_rf_ot_17_12_2013_N_12945_13_po/0/postanovlenie_fas_tsentralnogo_okruga_ot_09_07_2013_po_delu.html",
+      "verification_note": "Дело А68-7334/2012 описывает ежедневную пеню 10% от цены госконтракта. Это исторический пример. Для эталона нужен оригинал договора с подтвержденным правовым режимом 44-ФЗ или 223-ФЗ."
+    },
+    {
+      "file": "03_hidden_licenses.docx",
+      "category": "licenses",
+      "reference_url": "https://base.garant.ru/75910785/",
+      "verification_note": "Решение 077/07/00-2529/2022 рассматривает отсутствие явно установленного требования к лицензии МЧС. Нужно найти проект и подтвердить обязанность в его тексте, затем сверить с извещением."
+    },
+    {
+      "file": "04_harsh_acceptance.pdf",
+      "category": "delivery",
+      "notice_number": "0116100000419000070",
+      "reference_url": "https://base.garant.ru/76134641/",
+      "verification_note": "Решение 014/06/64-2271/2019 указывает на экспертизу до 30 рабочих дней по п. 6.1 проекта. Номер страницы и цитату нужно проверить по оригиналу."
+    },
+    {
+      "file": "05_safe_standard.docx",
+      "category": null,
+      "notice_number": "0335200004926000028",
+      "reference_url": "https://z.xipi.ru/notification/0335200004926000028",
+      "attachment_url": "https://zakupki.gov.ru/44fz/filestore/public/1.0/download/priz/file.html?uid=01A0C87DA61A7CAD8AD2BEDDE5AC40CF",
+      "verification_note": "Найден проект на поставку продуктов. Файловое хранилище ЕИС вернуло HTTP 404. Требуется проверить документ по всем пяти категориям, прежде чем использовать как отрицательный пример."
+    }
+  ]
+}
