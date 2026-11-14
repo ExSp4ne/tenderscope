@@ -107,10 +107,4 @@ def read_document(file_path):
     if not pages:
         raise ValueError(f"Не удалось извлечь текст из файла: {path}")
     return pages
-    # TODO (Напиши сам — 10-12 строк):
-    # 1. Преврати file_path в объект Path(file_path). Если файла нет (not path.is_file()) — брось FileNotFoundError
-    # 2. Проверь расширение path.suffix.lower():
-    #    - если ".docx" -> вызови read_docx(path)
-    #    - если ".pdf"  -> вызови read_pdf(path)
-    #    - иначе        -> брось ValueError("Неподдерживаемый формат файла: ...")
-    # 3. Если список pages получился пустым — брось ValueError("Не удалось извлечь текст...")
+
