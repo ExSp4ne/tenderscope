@@ -14,10 +14,8 @@ import (
 	"time"
 )
 
-const (
-	UploadDir     = "uploads"
-	MaxUploadSize = 30 << 20 // 30 МБ
-)
+// Папка для загрузок задаётся в config.go (UploadDir())
+const MaxUploadSize = 30 << 20 // 30 МБ
 
 // UploadHandler — POST /api/upload (multipart/form-data, поле file)
 func UploadHandler(w http.ResponseWriter, r *http.Request) {
@@ -71,14 +69,15 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := os.MkdirAll(UploadDir, 0o755); err != nil {
+	dir := UploadDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "не удалось создать папку"})
 		return
 	}
 	// Имя генерируем сами - имя от пользователя в путь не попадает
 	rnd := make([]byte, 4)
 	rand.Read(rnd)
-	path := filepath.Join(UploadDir, fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), hex.EncodeToString(rnd), ext))
+	path := filepath.Join(dir, fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), hex.EncodeToString(rnd), ext))
 
 	dst, err := os.Create(path)
 	if err != nil {
