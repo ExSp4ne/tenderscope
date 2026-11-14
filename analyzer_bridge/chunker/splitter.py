@@ -85,6 +85,7 @@ def extract_clauses(pages):
             if SECTION_RE.match(line) and len(line) < 160:
                 flush()
                 section = line
+                clause = DEFAULT_CLAUSE
                 start_page = page_number
                 continue
             match = CLAUSE_RE.match(line)

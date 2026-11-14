@@ -98,9 +98,9 @@ def read_document(file_path):
     if not path.is_file():
         raise FileNotFoundError(f"Файл контракта не найден: {path}")
     suffix = path.suffix.lower()
-    if suffix = ".docx":
+    if suffix == ".docx":
         pages = read_docx(path)
-    if else suffix = ".pdf":
+    elif suffix == ".pdf":
         pages = read_pdf(path)
     else:
         raise ValueError(f"Неподдерживаемый формат файла: {suffix}")
