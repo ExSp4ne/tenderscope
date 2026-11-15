@@ -29,7 +29,7 @@ type TenderMeta struct {
 	Title    string  `json:"title"`
 	Customer string  `json:"customer"`
 	Price    float64 `json:"price"`
-	Law      string  `json:"law"` // "44-ФЗ" или "223-ФЗ"
+	Law      string  `json:"lawType"` // "44-ФЗ" или "223-ФЗ"
 }
 
 var (
