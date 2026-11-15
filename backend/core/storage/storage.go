@@ -1,13 +1,10 @@
-// Package storage инициализирует БД и применяет миграции.
-// Репозитории работают через database/sql и интерфейсы (см. repository.go),
-// поэтому замена SQLite на PostgreSQL сводится к смене драйвера/DSN в Open.
 package storage
 
 import (
 	"database/sql"
 	"fmt"
 
-	_ "github.com/mattn/go-sqlite3" // драйвер SQLite (CGO)
+	_ "modernc.org/sqlite"
 )
 
 const schema = `
@@ -46,9 +43,8 @@ CREATE TABLE IF NOT EXISTS risk_items (
 );
 `
 
-// Open открывает SQLite-файл по пути path.
 func Open(path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=on", path))
+	db, err := sql.Open("sqlite", fmt.Sprintf("file:%s?_pragma=foreign_keys(1)", path))
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +54,6 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-// Migrate создаёт таблицы, если их ещё нет.
 func Migrate(db *sql.DB) error {
 	_, err := db.Exec(schema)
 	return err

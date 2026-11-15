@@ -15,12 +15,11 @@ func TestRepositoriesRoundTrip(t *testing.T) {
 	if err := Migrate(db); err != nil {
 		t.Fatal(err)
 	}
-	if err := Migrate(db); err != nil { // идемпотентность
+	if err := Migrate(db); err != nil {
 		t.Fatal(err)
 	}
 	repos := NewSQLiteRepositories(db)
 	ctx := context.Background()
-
 	if err := repos.Tenders.Create(ctx, &Tender{ID: "t1", TenderNumber: "1", Title: "T", Customer: "C", Price: 1234.5, LawType: "44-ФЗ"}); err != nil {
 		t.Fatal(err)
 	}

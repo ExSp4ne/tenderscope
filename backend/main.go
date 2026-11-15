@@ -7,13 +7,11 @@ import (
 	"path/filepath"
 
 	"github.com/go-chi/chi/v5"
-
-	"tenderscope/core/handlers"
-	"tenderscope/core/storage"
+	"tenderscope/backend/core/handlers"
+	"tenderscope/backend/core/storage"
+	"tenderscope/backend/eis"
 )
 
-// cors разрешает запросы с фронтенда (localhost:3000, localhost:5173).
-// По требованию DoD всегда отдаётся Access-Control-Allow-Origin: *.
 func cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
@@ -31,7 +29,7 @@ func cors(next http.Handler) http.Handler {
 func main() {
 	dbPath := os.Getenv("DB_PATH")
 	if dbPath == "" {
-		dbPath = "storage/data.db" // относительно backend/core/
+		dbPath = "core/storage/data.db"
 	}
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
 		log.Fatalf("create db dir: %v", err)
@@ -44,11 +42,12 @@ func main() {
 	if err := storage.Migrate(db); err != nil {
 		log.Fatalf("migrate: %v", err)
 	}
-	_ = storage.NewSQLiteRepositories(db) // пока не используются хендлерами
+	_ = storage.NewSQLiteRepositories(db)
 
 	r := chi.NewRouter()
 	r.Use(cors)
 	r.Get("/api/audits/{id}", handlers.GetAuditByID)
+	r.Post("/api/upload", eis.UploadHandler)
 
 	addr := "localhost:8080"
 	log.Printf("listening on %s", addr)

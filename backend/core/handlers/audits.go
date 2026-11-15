@@ -9,73 +9,84 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-type passport struct {
-	TenderNumber string `json:"tender_number"`
-	Customer     string `json:"customer"`
-	Price        int64  `json:"price"`
-	LawType      string `json:"law_type"`
-}
-
-type counters struct {
-	Red    int `json:"red"`
-	Yellow int `json:"yellow"`
-	Green  int `json:"green"`
+type summary struct {
+	RedCount    int    `json:"redCount"`
+	YellowCount int    `json:"yellowCount"`
+	GreenCount  int    `json:"greenCount"`
+	Verdict     string `json:"verdict"`
 }
 
 type riskItem struct {
 	ID             string `json:"id"`
-	Level          string `json:"level"`
 	Category       string `json:"category"`
+	Level          string `json:"level"`
 	Title          string `json:"title"`
 	Description    string `json:"description"`
 	Recommendation string `json:"recommendation"`
 	Quote          string `json:"quote"`
-	PageNumber     int    `json:"page_number"`
-	ClauseNumber   string `json:"clause_number"`
+	PageNumber     int    `json:"pageNumber"`
+	ClauseNumber   string `json:"clauseNumber"`
 }
 
 type auditResponse struct {
-	ID        string     `json:"id"`
-	Status    string     `json:"status"`
-	Passport  passport   `json:"passport"`
-	Counters  counters   `json:"counters"`
-	RiskItems []riskItem `json:"risk_items"`
+	ID           string     `json:"id"`
+	TenderNumber string     `json:"tenderNumber"`
+	Title        string     `json:"title"`
+	Customer     string     `json:"customer"`
+	Price        float64    `json:"price"`
+	LawType      string     `json:"lawType"`
+	Status       string     `json:"status"`
+	Summary      summary    `json:"summary"`
+	Risks        []riskItem `json:"risks"`
 }
 
 var demoAudit = auditResponse{
-	ID:     "demo-1",
-	Status: "completed",
-	Passport: passport{
-		TenderNumber: "0373200009324000123",
-		Customer:     `ГБУ "Гормост"`,
-		Price:        14500000,
-		LawType:      "44-ФЗ",
+	ID:           "demo-1",
+	TenderNumber: "0373200009324000123",
+	Title:        "Поставка компьютерного оборудования",
+	Customer:     `ГБУ "Гормост"`,
+	Price:        14500000,
+	LawType:      "44-ФЗ",
+	Status:       "completed",
+	Summary: summary{
+		RedCount:    1,
+		YellowCount: 1,
+		GreenCount:  1,
+		Verdict:     "Высокий риск: обнаружены кабальные условия",
 	},
-	Counters: counters{Red: 1, Yellow: 1, Green: 1},
-	RiskItems: []riskItem{
+	Risks: []riskItem{
 		{
-			ID: "risk-1", Level: "red", Category: "payment_terms",
-			Title:          "Оплата в течение 60 рабочих дней",
-			Description:    "Срок оплаты превышает допустимый и создаёт кассовый разрыв для исполнителя.",
-			Recommendation: "Согласовать сокращение срока оплаты или предусмотреть аванс.",
+			ID:             "r-1",
+			Category:       "payment",
+			Level:          "red",
+			Title:          "Отсрочка оплаты 60 рабочих дней",
+			Description:    "Срок оплаты превышает законные 7 рабочих дней по 44-ФЗ, что ведет к кассовому разрыву.",
+			Recommendation: "Подать запрос на разъяснение положений документации.",
 			Quote:          "Оплата производится в течение 60 рабочих дней с даты подписания акта.",
-			PageNumber:     18, ClauseNumber: "4.3",
+			PageNumber:     18,
+			ClauseNumber:   "4.3",
 		},
 		{
-			ID: "risk-2", Level: "yellow", Category: "acceptance_deadline",
+			ID:             "r-2",
+			Category:       "delivery",
+			Level:          "yellow",
 			Title:          "Срок приемки заказчиком — 30 рабочих дней",
-			Description:    "Длительный срок приёмки увеличивает период оборота средств.",
-			Recommendation: "Зафиксировать промежуточные этапы приёмки.",
+			Description:    "Длительный срок приёмки увеличивает период оборота средств. Задержка подписания акта откладывает момент начала отсчёта оплаты.",
+			Recommendation: "Зафиксировать промежуточные этапы приёмки или подать запрос на сокращение срока экспертизы.",
 			Quote:          "Заказчик рассматривает результаты в течение 30 рабочих дней.",
-			PageNumber:     25, ClauseNumber: "6.2",
+			PageNumber:     25,
+			ClauseNumber:   "6.2",
 		},
 		{
-			ID: "risk-3", Level: "green", Category: "termination",
+			ID:             "r-3",
+			Category:       "termination",
+			Level:          "green",
 			Title:          "Условия расторжения соответствуют ст. 95 44-ФЗ",
-			Description:    "Пункт соответствует требованиям законодательства.",
+			Description:    "Пункт предусматривает стандартный порядок расторжения по закону. Дополнительных рисков внесудебного отказа без оснований не выявлено.",
 			Recommendation: "Дополнительных действий не требуется.",
 			Quote:          "Расторжение контракта допускается по основаниям, предусмотренным ст. 95 44-ФЗ.",
-			PageNumber:     34, ClauseNumber: "10.1",
+			PageNumber:     34,
+			ClauseNumber:   "10.1",
 		},
 	},
 }
@@ -89,14 +100,13 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 		http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	if _, err := w.Write(buf.Bytes()); err != nil {
 		log.Printf("write response: %v", err)
 	}
 }
 
-// GetAuditByID — мок: отдаёт demo-1, для остальных id — 404.
 func GetAuditByID(w http.ResponseWriter, r *http.Request) {
 	if chi.URLParam(r, "id") == "demo-1" {
 		writeJSON(w, http.StatusOK, demoAudit)

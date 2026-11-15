@@ -56,8 +56,6 @@ type RiskItemRepository interface {
 	ListByAudit(ctx context.Context, auditID string) ([]RiskItem, error)
 }
 
-// Repositories — набор репозиториев. Для PostgreSQL достаточно новых
-// реализаций интерфейсов (плейсхолдеры $1.. вместо ?).
 type Repositories struct {
 	Tenders   TenderRepository
 	Audits    AuditRepository
@@ -140,7 +138,7 @@ func (r *sqlRiskItems) ListByAudit(ctx context.Context, auditID string) ([]RiskI
 		return nil, err
 	}
 	defer rows.Close()
-	var out []RiskItem
+	out := []RiskItem{}
 	for rows.Next() {
 		var ri RiskItem
 		if err := rows.Scan(&ri.ID, &ri.AuditID, &ri.Category, &ri.Level, &ri.Title, &ri.Description,
