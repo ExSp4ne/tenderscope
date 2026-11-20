@@ -1,16 +1,26 @@
-# analyzer_bridge — парсер и чанкер контрактов
+# Analyzer Bridge (`analyzer_bridge`)
 
-Модуль извлечения текста и таблиц из закупочной документации (`.pdf`, `.docx`) с разбиением на смысловые фрагменты без разрыва предложений.
+Модуль извлечения текста из закупочных контрактов (`.pdf` и `.docx`), смысловой нарезки по пунктам и верификации цитат LLM.
 
 ## Структура
+- `parser/reader.py` — постраничное чтение `.pdf` (`pdfplumber`) и `.docx` (`python-docx`) с сохранением таблиц.
+- `chunker/splitter.py` — нарезка текста на фрагменты по разделам и пунктам (`1.1.`, `4.2.1` и т.д.) с лимитом `max_chars=2500`.
+- `verifier/matcher.py` — двухуровневая сверка цитат (`exact_quote`) с исходным текстом фрагмента (точное совпадение + нормализация пробелов, тире и переносов строк). Отбрасывает галлюцинации модели.
+- `test_parser.py` — CLI-утилита только для парсинга и нарезки документа в `chunks.json`.
+- `run_analysis.py` — полный конвейер анализа документа и сборки отчета по схеме `docs/contracts.md`.
 
-* `parser/reader.py` — постраничное чтение `.pdf` (`pdfplumber`) и `.docx` (`python-docx`), извлечение таблиц с разделителем `|`.
-* `chunker/splitter.py` — нарезка текста по разделам и пунктам контракта (800–2000 символов) с привязкой к странице.
-* `test_parser.py` — CLI-утилита для локальной проверки и валидации выходного JSON.
-
-## Установка и запуск
-
+## Установка
 ```bash
-cd analyzer_bridge
 pip install -r requirements.txt
-python test_parser.py --file=sample_contract.pdf --out=chunks.json
+```
+
+## Запуск полного конвейера с верификацией цитат
+Оффлайн-проверка (на эталонных аннотациях с проверкой отсева галлюцинаций):
+```bash
+python run_analysis.py --file=../ml/dataset/01_delayed_payment.docx --law=223-ФЗ --mock-llm --out=result.json
+```
+
+Запуск с локальной моделью Ollama (`qwen2.5:7b`):
+```bash
+python run_analysis.py --file=../ml/dataset/01_delayed_payment.docx --law=223-ФЗ --out=result.json
+```
