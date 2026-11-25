@@ -8,26 +8,17 @@ Set RISK_API_KEY if the endpoint requires bearer authentication.
 
 import argparse
 import json
-import os
-from pathlib import Path
 import sys
 from urllib.error import HTTPError
-from urllib.request import Request, urlopen
+
+if __package__:
+    from .inference.client import FIELDS, PROMPT_PATH, query_model, unique_keys
+else:
+    from inference.client import FIELDS, PROMPT_PATH, query_model, unique_keys
 
 
-PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "risk_detector.txt"
 QUOTE = "Оплата производится в течение 60 рабочих дней с даты подписания акта."
 FRAGMENT = f"4.3. {QUOTE}"
-FIELDS = {"category", "level", "title", "description", "recommendation", "exact_quote"}
-
-
-def unique_keys(pairs):
-    result = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError(f"Duplicate JSON key: {key}")
-        result[key] = value
-    return result
 
 
 def validate(raw):
@@ -45,30 +36,6 @@ def validate(raw):
     return result
 
 
-def query_model(prompt):
-    url = os.getenv("RISK_API_URL", "http://localhost:11434/v1/chat/completions")
-    headers = {"Content-Type": "application/json"}
-    api_key = os.getenv("RISK_API_KEY")
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-    payload = {
-        "model": os.getenv("RISK_MODEL", "qwen2.5:7b"),
-        "messages": [
-            {"role": "system", "content": prompt},
-            {
-                "role": "user",
-                "content": json.dumps({"law": "44-ФЗ", "fragment": FRAGMENT}, ensure_ascii=False),
-            },
-        ],
-        "temperature": 0,
-        "stream": False,
-    }
-    request = Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers)
-    with urlopen(request, timeout=120) as response:
-        completion = json.load(response)
-    return completion["choices"][0]["message"]["content"]
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runs", type=int, default=1, help="number of independent model calls")
@@ -84,7 +51,7 @@ def main():
 
     for run in range(1, args.runs + 1):
         try:
-            result = validate(query_model(prompt))
+            result = validate(query_model(prompt, "44-ФЗ", FRAGMENT))
         except HTTPError as error:
             print(f"Run {run}: model endpoint returned HTTP {error.code}", file=sys.stderr)
             return 1

@@ -47,8 +47,15 @@ type TenderRepository interface {
 
 type AuditRepository interface {
 	Create(ctx context.Context, a *Audit) error
+	// CreateWithTender атомарно создаёт закупку и проверку (одной транзакцией).
+	CreateWithTender(ctx context.Context, t *Tender, a *Audit) error
 	GetByID(ctx context.Context, id string) (*Audit, error)
 	UpdateStatus(ctx context.Context, id, status string) error
+	// Complete атомарно сохраняет риски, пересчитывает счётчики и ставит статус completed.
+	Complete(ctx context.Context, auditID string, items []RiskItem) error
+	// FailStale переводит все проверки в статусе processing/created в failed
+	// (нужно при старте сервера: фоновые задачи после перезапуска не продолжаются).
+	FailStale(ctx context.Context) (int64, error)
 }
 
 type RiskItemRepository interface {
@@ -114,6 +121,78 @@ func (r *sqlAudits) GetByID(ctx context.Context, id string) (*Audit, error) {
 	return a, nil
 }
 
+func (r *sqlAudits) CreateWithTender(ctx context.Context, t *Tender, a *Audit) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO tenders (id, tender_number, title, customer, price, law_type, file_path)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		t.ID, t.TenderNumber, t.Title, t.Customer, t.Price, t.LawType, t.FilePath); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO audits (id, tender_id, status, red_count, yellow_count, green_count)
+		 VALUES (?, ?, ?, ?, ?, ?)`,
+		a.ID, a.TenderID, a.Status, a.RedCount, a.YellowCount, a.GreenCount); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (r *sqlAudits) Complete(ctx context.Context, auditID string, items []RiskItem) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var red, yellow, green int
+	for i := range items {
+		ri := &items[i]
+		if ri.ID == "" {
+			ri.ID = NewID()
+		}
+		ri.AuditID = auditID
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO risk_items (id, audit_id, category, level, title, description, recommendation, quote, page_number, clause_number)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			ri.ID, ri.AuditID, ri.Category, ri.Level, ri.Title, ri.Description,
+			ri.Recommendation, ri.Quote, ri.PageNumber, ri.ClauseNumber); err != nil {
+			return err
+		}
+		switch ri.Level {
+		case "red":
+			red++
+		case "yellow":
+			yellow++
+		case "green":
+			green++
+		}
+	}
+	res, err := tx.ExecContext(ctx,
+		`UPDATE audits SET status = 'completed', red_count = ?, yellow_count = ?, green_count = ? WHERE id = ?`,
+		red, yellow, green, auditID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	return tx.Commit()
+}
+
+func (r *sqlAudits) FailStale(ctx context.Context) (int64, error) {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE audits SET status = 'failed' WHERE status IN ('created', 'processing')`)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 func (r *sqlAudits) UpdateStatus(ctx context.Context, id, status string) error {
 	_, err := r.db.ExecContext(ctx, `UPDATE audits SET status = ? WHERE id = ?`, status, id)
 	return err
@@ -133,7 +212,7 @@ func (r *sqlRiskItems) Create(ctx context.Context, ri *RiskItem) error {
 func (r *sqlRiskItems) ListByAudit(ctx context.Context, auditID string) ([]RiskItem, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, audit_id, category, level, title, description, recommendation, quote, page_number, clause_number
-		 FROM risk_items WHERE audit_id = ?`, auditID)
+		 FROM risk_items WHERE audit_id = ? ORDER BY rowid`, auditID)
 	if err != nil {
 		return nil, err
 	}
