@@ -14,13 +14,21 @@ export interface RiskItem {
   clauseNumber: string
 }
 
+export interface AuditSummary {
+  redCount: number
+  yellowCount: number
+  greenCount: number
+  verdict: string
+}
+
 export interface AuditResult {
+  id?: string
   tenderNumber: string
   title: string
   customer: string
   price: number
   lawType: string
   status: string
-  summary: string
+  summary: AuditSummary
   risks: RiskItem[]
 }
