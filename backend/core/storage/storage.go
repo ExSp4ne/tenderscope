@@ -44,14 +44,22 @@ CREATE TABLE IF NOT EXISTS risk_items (
 `
 
 func Open(path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", fmt.Sprintf("file:%s?_pragma=foreign_keys(1)", path))
+	db, err := sql.Open("sqlite", dsn(path))
 	if err != nil {
 		return nil, err
 	}
+	// SQLite допускает одного писателя: одно соединение исключает «database is locked»
+	// при записи из фонового воркера и HTTP-хендлеров одновременно.
+	db.SetMaxOpenConns(1)
 	if err := db.Ping(); err != nil {
 		return nil, err
 	}
 	return db, nil
+}
+
+// dsn — единственное место, зависящее от драйвера (при смене драйвера/БД править только его).
+func dsn(path string) string {
+	return fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)", path)
 }
 
 func Migrate(db *sql.DB) error {
