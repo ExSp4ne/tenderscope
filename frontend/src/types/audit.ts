@@ -15,6 +15,7 @@ export interface RiskItem {
 }
 
 export interface AuditResult {
+  id?: string
   tenderNumber: string
   title: string
   customer: string
