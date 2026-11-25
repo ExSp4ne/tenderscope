@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import {useMemo, useState} from "react"
 import {
   ArrowLeft,
   Building,
@@ -13,7 +13,7 @@ import {
   TriangleExclamationPoint,
   Wallet,
 } from "lucide-react"
-import type { AuditResult, RiskFilter, RiskItem, RiskLevel } from "../types/audit"
+import type {AuditResult, RiskFilter, RiskItem, RiskLevel} from "../types/audit"
 
 interface AuditDashboardProps {
   result: AuditResult
@@ -189,7 +189,7 @@ export default function AuditDashboard({ result, onBack }: AuditDashboardProps) 
           <verdict.Icon className={`mt-0.5 size-5 shrink-0 ${verdict.icon}`} />
           <div>
             <p className="text-sm font-semibold">{verdict.title}</p>
-            <p className="mt-1 text-sm leading-relaxed opacity-90">{result.summary}</p>
+            <p className="mt-1 text-sm leading-relaxed opacity-90">{result.summary.verdict}</p>
           </div>
         </div>
 

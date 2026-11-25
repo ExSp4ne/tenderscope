@@ -14,6 +14,13 @@ export interface RiskItem {
   clauseNumber: string
 }
 
+export interface AuditSummary {
+  redCount: number
+  yellowCount: number
+  greenCount: number
+  verdict: string
+}
+
 export interface AuditResult {
   id?: string
   tenderNumber: string
@@ -22,6 +29,6 @@ export interface AuditResult {
   price: number
   lawType: string
   status: string
-  summary: string
+  summary: AuditSummary
   risks: RiskItem[]
 }

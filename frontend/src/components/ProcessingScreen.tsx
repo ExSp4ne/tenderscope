@@ -51,7 +51,11 @@ export default function ProcessingScreen({ auditId, onComplete, onBack }: Proces
           timer = window.setTimeout(poll, POLL_INTERVAL_MS)
           return
         }
-        onCompleteRef.current(audit)
+        if (audit.status === "completed") {
+          onCompleteRef.current(audit)
+          return
+        }
+        setError(`Неизвестный статус проверки: ${audit.status}`)
       } catch (e) {
         if (cancelled) return
         setError(e instanceof Error ? e.message : "Не удалось получить статус проверки.")

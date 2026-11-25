@@ -8,6 +8,7 @@ export const API_BASE_URL = (rawBaseUrl && rawBaseUrl.trim()) || "http://localho
 const JSON_HEADERS = { "Content-Type": "application/json" }
 
 const DEFAULT_TIMEOUT_MS = 15000
+const START_AUDIT_TIMEOUT_MS = 60000
 const UPLOAD_TIMEOUT_MS = 120000
 
 async function parseError(res: Response): Promise<string> {
@@ -50,19 +51,27 @@ export function uploadContract(file: File): Promise<{ path: string }> {
 }
 
 export function startAuditByNumber(tenderNumber: string): Promise<{ id: string }> {
-  return request<{ id: string }>("/api/audits", {
-    method: "POST",
-    headers: JSON_HEADERS,
-    body: JSON.stringify({ tenderNumber }),
-  })
+  return request<{ id: string }>(
+    "/api/audits",
+    {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ tenderNumber }),
+    },
+    START_AUDIT_TIMEOUT_MS,
+  )
 }
 
 export function startAuditByFile(filePath: string, lawType: LawType): Promise<{ id: string }> {
-  return request<{ id: string }>("/api/audits", {
-    method: "POST",
-    headers: JSON_HEADERS,
-    body: JSON.stringify({ filePath, lawType }),
-  })
+  return request<{ id: string }>(
+    "/api/audits",
+    {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ filePath, lawType }),
+    },
+    START_AUDIT_TIMEOUT_MS,
+  )
 }
 
 export function getAudit(id: string): Promise<AuditResult> {
