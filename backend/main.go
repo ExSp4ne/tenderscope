@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"tenderscope/backend/core/handlers"
@@ -26,6 +27,26 @@ func cors(next http.Handler) http.Handler {
 	})
 }
 
+// Как часто чистим временные файлы и файлы старше какого возраста удаляем
+const (
+	cleanupInterval = time.Hour
+	cleanupMaxAge   = 24 * time.Hour
+)
+
+func startCleanup() {
+	run := func() {
+		if err := eis.CleanupOldFiles(cleanupMaxAge); err != nil {
+			log.Printf("cleanup: %v", err)
+		}
+	}
+	run()
+	go func() {
+		for range time.Tick(cleanupInterval) {
+			run()
+		}
+	}()
+}
+
 func main() {
 	dbPath := os.Getenv("DB_PATH")
 	if dbPath == "" {
@@ -43,6 +64,7 @@ func main() {
 		log.Fatalf("migrate: %v", err)
 	}
 	_ = storage.NewSQLiteRepositories(db)
+	startCleanup()
 
 	r := chi.NewRouter()
 	r.Use(cors)
