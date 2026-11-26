@@ -2,11 +2,16 @@ package handlers
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+
+	"tenderscope/backend/core/storage"
+	"tenderscope/backend/eis"
 )
 
 type summary struct {
@@ -107,10 +112,102 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	}
 }
 
-func GetAuditByID(w http.ResponseWriter, r *http.Request) {
-	if chi.URLParam(r, "id") == "demo-1" {
+// Submitter ставит проверку в очередь фонового воркера (реализует worker.Runner).
+type Submitter interface {
+	Submit(auditID, filePath, lawType string) error
+}
+
+// Audits — хендлеры /api/audits. Download подменяется в тестах.
+type Audits struct {
+	Repos    *storage.Repositories
+	Runner   Submitter
+	Download func(tenderNumber string) (filePath string, meta eis.TenderMeta, err error)
+}
+
+// NewAudits создаёт хендлеры с боевой загрузкой из ЕИС.
+func NewAudits(repos *storage.Repositories, runner Submitter) *Audits {
+	return &Audits{Repos: repos, Runner: runner, Download: eis.DownloadTenderFiles}
+}
+
+// Get — GET /api/audits/{id}: demo-1 отдаётся моком, остальные — из БД.
+func (h *Audits) Get(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "demo-1" {
 		writeJSON(w, http.StatusOK, demoAudit)
 		return
 	}
-	writeJSON(w, http.StatusNotFound, map[string]string{"error": "audit not found"})
+	ctx := r.Context()
+	audit, err := h.Repos.Audits.GetByID(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "audit not found"})
+		return
+	}
+	if err != nil {
+		log.Printf("get audit %s: %v", id, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	tender, err := h.Repos.Tenders.GetByID(ctx, audit.TenderID)
+	if err != nil {
+		log.Printf("get tender %s for audit %s: %v", audit.TenderID, id, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	items, err := h.Repos.RiskItems.ListByAudit(ctx, id)
+	if err != nil {
+		log.Printf("list risks for audit %s: %v", id, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+
+	risks := make([]riskItem, 0, len(items))
+	for _, it := range items {
+		ri := riskItem{
+			ID: it.ID, Category: it.Category, Level: it.Level,
+			Title: it.Title, Description: it.Description,
+		}
+		if it.Recommendation != nil {
+			ri.Recommendation = *it.Recommendation
+		}
+		if it.Quote != nil {
+			ri.Quote = *it.Quote
+		}
+		if it.PageNumber != nil {
+			ri.PageNumber = *it.PageNumber
+		}
+		if it.ClauseNumber != nil {
+			ri.ClauseNumber = *it.ClauseNumber
+		}
+		risks = append(risks, ri)
+	}
+	writeJSON(w, http.StatusOK, auditResponse{
+		ID:           audit.ID,
+		TenderNumber: tender.TenderNumber,
+		Title:        tender.Title,
+		Customer:     tender.Customer,
+		Price:        tender.Price,
+		LawType:      tender.LawType,
+		Status:       audit.Status,
+		Summary: summary{
+			RedCount:    audit.RedCount,
+			YellowCount: audit.YellowCount,
+			GreenCount:  audit.GreenCount,
+			Verdict:     verdict(audit),
+		},
+		Risks: risks,
+	})
+}
+
+func verdict(a *storage.Audit) string {
+	if a.Status != "completed" {
+		return ""
+	}
+	switch {
+	case a.RedCount > 0:
+		return "Высокий риск: обнаружены кабальные условия"
+	case a.YellowCount > 0:
+		return "Средний риск: есть условия, требующие проверки"
+	default:
+		return "Существенных рисков не обнаружено"
+	}
 }
