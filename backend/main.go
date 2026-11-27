@@ -11,11 +11,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"tenderscope/backend/core/handlers"
 	"tenderscope/backend/core/storage"
 	"tenderscope/backend/core/worker"
 	"tenderscope/backend/eis"
+
+	"github.com/go-chi/chi/v5"
 )
 
 func cors(next http.Handler) http.Handler {
@@ -30,6 +31,34 @@ func cors(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// Как часто чистим временные файлы и файлы старше какого возраста удаляем
+const (
+	cleanupInterval = time.Hour
+	cleanupMaxAge   = 24 * time.Hour
+)
+
+// startCleanup запускает фоновую очистку и корректно останавливается вместе с сервером.
+func startCleanup(ctx context.Context) {
+	run := func() {
+		if err := eis.CleanupOldFiles(cleanupMaxAge); err != nil {
+			log.Printf("cleanup: %v", err)
+		}
+	}
+	run() // первый прогон сразу при старте
+	go func() {
+		ticker := time.NewTicker(cleanupInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				run()
+			}
+		}
+	}()
 }
 
 func main() {
@@ -60,6 +89,13 @@ func main() {
 	runner := worker.New(repos)
 	audits := handlers.NewAudits(repos, runner)
 
+	// Корневой контекст завершения сервера (Ctrl+C / SIGTERM).
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// Автоочистка временных файлов EIS — останавливается вместе с сервером.
+	startCleanup(ctx)
+
 	r := chi.NewRouter()
 	r.Use(cors)
 	r.Get("/api/audits/{id}", audits.Get)
@@ -68,19 +104,17 @@ func main() {
 
 	srv := &http.Server{Addr: "localhost:8080", Handler: r, ReadHeaderTimeout: 10 * time.Second}
 
-	stop, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
 	shutdownDone := make(chan struct{})
 	go func() {
 		defer close(shutdownDone)
-		<-stop.Done()
+		<-ctx.Done()
 		log.Printf("останавливаюсь...")
-		ctx, c := context.WithTimeout(context.Background(), 10*time.Second)
+		sctx, c := context.WithTimeout(context.Background(), 10*time.Second)
 		defer c()
-		if err := srv.Shutdown(ctx); err != nil {
+		if err := srv.Shutdown(sctx); err != nil {
 			log.Printf("http shutdown: %v", err)
 		}
-		if err := runner.Shutdown(ctx); err != nil {
+		if err := runner.Shutdown(sctx); err != nil {
 			log.Printf("worker shutdown: %v", err)
 		}
 	}()
