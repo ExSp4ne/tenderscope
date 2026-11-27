@@ -1,16 +1,22 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"tenderscope/backend/core/handlers"
 	"tenderscope/backend/core/storage"
+	"tenderscope/backend/core/worker"
 	"tenderscope/backend/eis"
+
+	"github.com/go-chi/chi/v5"
 )
 
 func cors(next http.Handler) http.Handler {
@@ -33,16 +39,24 @@ const (
 	cleanupMaxAge   = 24 * time.Hour
 )
 
-func startCleanup() {
+// startCleanup запускает фоновую очистку и корректно останавливается вместе с сервером.
+func startCleanup(ctx context.Context) {
 	run := func() {
 		if err := eis.CleanupOldFiles(cleanupMaxAge); err != nil {
 			log.Printf("cleanup: %v", err)
 		}
 	}
-	run()
+	run() // первый прогон сразу при старте
 	go func() {
-		for range time.Tick(cleanupInterval) {
-			run()
+		ticker := time.NewTicker(cleanupInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				run()
+			}
 		}
 	}()
 }
@@ -63,15 +77,51 @@ func main() {
 	if err := storage.Migrate(db); err != nil {
 		log.Fatalf("migrate: %v", err)
 	}
-	_ = storage.NewSQLiteRepositories(db)
-	startCleanup()
+	repos := storage.NewSQLiteRepositories(db)
+
+	// Фоновые задачи не переживают перезапуск: зависшие processing переводим в failed.
+	if n, err := repos.Audits.FailStale(context.Background()); err != nil {
+		log.Printf("fail stale audits: %v", err)
+	} else if n > 0 {
+		log.Printf("помечено failed незавершённых проверок: %d", n)
+	}
+
+	runner := worker.New(repos)
+	audits := handlers.NewAudits(repos, runner)
+
+	// Корневой контекст завершения сервера (Ctrl+C / SIGTERM).
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// Автоочистка временных файлов EIS — останавливается вместе с сервером.
+	startCleanup(ctx)
 
 	r := chi.NewRouter()
 	r.Use(cors)
-	r.Get("/api/audits/{id}", handlers.GetAuditByID)
+	r.Get("/api/audits/{id}", audits.Get)
+	r.Post("/api/audits", audits.Create)
 	r.Post("/api/upload", eis.UploadHandler)
 
-	addr := "localhost:8080"
-	log.Printf("listening on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, r))
+	srv := &http.Server{Addr: "localhost:8080", Handler: r, ReadHeaderTimeout: 10 * time.Second}
+
+	shutdownDone := make(chan struct{})
+	go func() {
+		defer close(shutdownDone)
+		<-ctx.Done()
+		log.Printf("останавливаюсь...")
+		sctx, c := context.WithTimeout(context.Background(), 10*time.Second)
+		defer c()
+		if err := srv.Shutdown(sctx); err != nil {
+			log.Printf("http shutdown: %v", err)
+		}
+		if err := runner.Shutdown(sctx); err != nil {
+			log.Printf("worker shutdown: %v", err)
+		}
+	}()
+
+	log.Printf("listening on %s", srv.Addr)
+	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Fatal(err)
+	}
+	<-shutdownDone // дождаться остановки воркера до закрытия БД (defer db.Close)
 }
