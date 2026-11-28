@@ -1,11 +1,13 @@
 import json
+import sys
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
-if __package__:
-    from .evaluate_dataset import score_document
-else:
-    from evaluate_dataset import score_document
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from ml.evaluate_dataset import score_document
 from ml.inference import analyzer
 
 
@@ -60,6 +62,19 @@ class BatchTests(unittest.TestCase):
             with self.subTest(level=level), self.assertRaisesRegex(ValueError, "Empty risk field: exact_quote"):
                 analyzer.parse_card(json.dumps({**CARD, "level": level, "exact_quote": ""}))
 
+    def test_parse_card_unwraps_markdown_fence(self):
+        payload = json.dumps(CARD)
+        self.assertEqual(analyzer.parse_card(f" \r\n```json\r\n{payload}\r\n```\n"), CARD)
+        with self.assertRaises(ValueError):
+            analyzer.parse_card(f"```json\n{payload}\n```\nExtra text")
+
+    @patch.object(analyzer, "query_model", return_value=json.dumps(CARD))
+    def test_analyzer_recovers_literal_source_quote(self, query):
+        source = QUOTE.replace("90 дней", "90\nдней").replace("после подписания", "после  подписания")
+        cards = analyzer.analyze_chunks([{**CHUNK, "text": source}], "223-ФЗ")
+        self.assertEqual(cards[0]["exact_quote"], source)
+        query.assert_called_once()
+
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(module=__name__)

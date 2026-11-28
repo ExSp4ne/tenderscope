@@ -1,65 +1,19 @@
 import argparse
 import json
 import sys
-import urllib.error
-import urllib.request
 from pathlib import Path
 
-from chunker.splitter import split_into_chunks
-from parser.reader import read_document
-from verifier.matcher import build_summary, verify_and_format_risk, verify_quote
-
 ROOT_DIR = Path(__file__).resolve().parent.parent
-PROMPT_PATH = ROOT_DIR / "ml" / "prompts" / "risk_detector.txt"
+if not __package__:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from analyzer_bridge.chunker.splitter import split_into_chunks
+from analyzer_bridge.parser.reader import read_document
+from analyzer_bridge.verifier.matcher import build_summary, verify_and_format_risk, verify_quote
+from ml.inference.analyzer import analyze_chunks
+
+
 ANNOTATIONS_PATH = ROOT_DIR / "ml" / "dataset" / "annotations.json"
-
-OLLAMA_URL = "http://localhost:11434/api/chat"
-MODEL_NAME = "qwen2.5:7b"
-
-
-def call_ollama(system_prompt: str, chunk: dict, law: str) -> list[dict]:
-    user_payload = json.dumps(
-        {
-            "law": law,
-            "page": chunk["page"],
-            "clause": chunk["clause"],
-            "text": chunk["text"],
-        },
-        ensure_ascii=False,
-    )
-    body = json.dumps(
-        {
-            "model": MODEL_NAME,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_payload},
-            ],
-            "stream": False,
-            "format": "json",
-            "options": {"temperature": 0.0},
-        }
-    ).encode("utf-8")
-
-    req = urllib.request.Request(
-        OLLAMA_URL,
-        data=body,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=90) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        content = data.get("message", {}).get("content", "").strip()
-        parsed = json.loads(content)
-        if isinstance(parsed, dict):
-            if "risks" in parsed and isinstance(parsed["risks"], list):
-                return parsed["risks"]
-            return [parsed]
-        if isinstance(parsed, list):
-            return parsed
-    except (urllib.error.URLError, json.JSONDecodeError, KeyError, TimeoutError) as exc:
-        print(f"[run_analysis] Ошибка LLM на чанке (стр. {chunk['page']}, п. {chunk['clause']}): {exc}", file=sys.stderr)
-    return []
 
 
 def get_mock_candidates(file_path: Path, chunk: dict) -> list[dict]:
@@ -120,31 +74,26 @@ def run_pipeline(
     pages = read_document(str(path))
     chunks = split_into_chunks(pages)
 
-    system_prompt = ""
-    if not use_mock_llm and PROMPT_PATH.exists():
-        system_prompt = PROMPT_PATH.read_text(encoding="utf-8")
+    if use_mock_llm:
+        candidates = (
+            (raw, chunk)
+            for chunk in chunks if len(chunk.get("text", "").strip()) >= 40
+            for raw in get_mock_candidates(path, chunk)
+        )
+    else:
+        candidates = ((raw, chunks[raw["chunk_index"]]) for raw in analyze_chunks(chunks, law))
 
     verified_risks: list[dict] = []
     seen_quotes: set[tuple[str, str]] = set()
-
-    for chunk in chunks:
-        if len(chunk.get("text", "").strip()) < 40:
+    for raw, chunk in candidates:
+        formatted = verify_and_format_risk(raw, chunk, len(verified_risks) + 1)
+        if formatted is None:
             continue
-
-        if use_mock_llm:
-            raw_risks = get_mock_candidates(path, chunk)
-        else:
-            raw_risks = call_ollama(system_prompt, chunk, law)
-
-        for raw in raw_risks:
-            formatted = verify_and_format_risk(raw, chunk, len(verified_risks) + 1)
-            if formatted is None:
-                continue
-            dedup_key = (formatted["clauseNumber"], formatted["quote"])
-            if dedup_key in seen_quotes:
-                continue
-            seen_quotes.add(dedup_key)
-            verified_risks.append(formatted)
+        dedup_key = (formatted["clauseNumber"], formatted["quote"])
+        if dedup_key in seen_quotes:
+            continue
+        seen_quotes.add(dedup_key)
+        verified_risks.append(formatted)
 
     return {
         "id": audit_id,
@@ -199,4 +148,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

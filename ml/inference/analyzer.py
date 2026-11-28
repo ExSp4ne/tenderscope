@@ -9,6 +9,7 @@ from .client import FIELDS, PROMPT_PATH, query_model, unique_keys
 LOGGER = logging.getLogger(__name__)
 CATEGORIES = {"payment", "fines", "licenses", "delivery", "termination"}
 RETRY_NOTE = "\nВерни только чистый JSON: один объект по указанной схеме, без Markdown и пояснений."
+JSON_FENCE = re.compile(r"```(?:json)?[ \t]*\r?\n(.*?)\r?\n[ \t]*```", re.IGNORECASE | re.DOTALL)
 TECH_FIELD = re.compile(
     r"[\W\d_]+|(?:стр(?:аница|ан\.)?\.?|лист)\s*\d+(?:\s*(?:из|/)\s*\d+)?|"
     r"(?:(?:государственный )?(?:контракт|договор)|приложение)\s*№\s*[\w/-]+|"
@@ -36,6 +37,9 @@ def should_analyze(text):
 
 
 def parse_card(raw):
+    fenced = JSON_FENCE.fullmatch(raw.strip())
+    if fenced:
+        raw = fenced[1]
     card = json.loads(raw, object_pairs_hook=unique_keys)
     if not isinstance(card, dict) or card.keys() != FIELDS:
         raise ValueError("Expected one risk object with six fields")
@@ -47,6 +51,19 @@ def parse_card(raw):
     if card["category"] not in CATEGORIES or card["level"] not in {"green", "red", "yellow"}:
         raise ValueError("Unknown category or level")
     return card
+
+
+def restore_quote(quote: str, fragment: str) -> str:
+    if quote in fragment:
+        return quote
+    # Reuse the original span when the model only changed whitespace or dash glyphs.
+    parts = re.split(r"(\s+|[-–—−])", quote.strip())
+    pattern = "".join(
+        r"\s+" if part.isspace() else "[-–—−]" if part in {"-", "–", "—", "−"} else re.escape(part)
+        for part in parts
+    )
+    match = re.search(pattern, fragment)
+    return match[0] if match else quote
 
 
 def analyze_chunks(chunks: list[dict], law: str) -> list[dict]:
@@ -70,6 +87,7 @@ def analyze_chunks(chunks: list[dict], law: str) -> list[dict]:
             outcome = card["level"]
             detail = f"{outcome}/{card['category']}" if outcome != "green" else "green, риск не выявлен"
             if outcome != "green":
+                card["exact_quote"] = restore_quote(card["exact_quote"], chunk["text"])
                 location = {key: chunk[key] for key in ("page", "section", "clause") if key in chunk}
                 risks.append({**card, **location, "chunk_index": index})
             break
