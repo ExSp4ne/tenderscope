@@ -33,7 +33,7 @@ class BatchTests(unittest.TestCase):
     @patch.object(analyzer, "query_model")
     def test_retry_skip_and_continue(self, query):
         valid = json.dumps(CARD)
-        query.side_effect = ["broken", "[]", "```json", valid,
+        query.side_effect = [None, "[]", "```json", valid,
                              json.dumps({**CARD, "level": "green", "exact_quote": ""})]
         with self.assertLogs(analyzer.LOGGER, level="INFO") as logs:
             cards = analyzer.analyze_chunks([{"text": ""}, CHUNK, CHUNK, CHUNK], "223-ФЗ")

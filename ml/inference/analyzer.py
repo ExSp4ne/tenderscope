@@ -37,8 +37,7 @@ def should_analyze(text):
 
 
 def parse_card(raw):
-    fenced = JSON_FENCE.fullmatch(raw.strip())
-    if fenced:
+    if isinstance(raw, str) and (fenced := JSON_FENCE.fullmatch(raw.strip())):
         raw = fenced[1]
     card = json.loads(raw, object_pairs_hook=unique_keys)
     if not isinstance(card, dict) or card.keys() != FIELDS:
